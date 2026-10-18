@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.api.deps import get_current_user, require_roles
 from app.models.auth import UserAccount
+from app.models.organization import Employee
 from app.models.payroll import EmployeeCompensation, PayrollPeriod, PayrollLine
 from app.schemas.payroll import (
     CompensationCreate, CompensationResponse,
@@ -130,7 +131,14 @@ async def get_payroll_lines(
     _ = Depends(require_roles(["HR", "ADMIN"]))
 ):
     """HR/ADMIN preview calculated lines to review the period before release."""
-    stmt = select(PayrollLine).where(PayrollLine.payroll_period_id == period_id)
+    stmt = (
+        select(PayrollLine)
+        .where(PayrollLine.payroll_period_id == period_id)
+        .options(
+            selectinload(PayrollLine.employee).selectinload(Employee.department),
+            selectinload(PayrollLine.employee).selectinload(Employee.position),
+        )
+    )
     result = await db.execute(stmt)
     return result.scalars().all()
 
@@ -188,6 +196,10 @@ async def get_my_payslips(
                 PayrollLine.employee_id == current_user.employee_id,
                 PayrollPeriod.status.in_(["CALCULATED", "APPROVED", "CLOSED"])
             )
+        )
+        .options(
+            selectinload(PayrollLine.employee).selectinload(Employee.department),
+            selectinload(PayrollLine.employee).selectinload(Employee.position),
         )
         .order_by(PayrollLine.calculated_at.desc())
     )

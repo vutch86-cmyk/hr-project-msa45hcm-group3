@@ -21,6 +21,7 @@ export interface Employee {
   employment_status: string;
   hire_date: string;
   termination_date?: string;
+  gross_salary?: number;
   department?: { department_name: string };
   position?: { position_name: string };
 }
@@ -131,6 +132,10 @@ export interface PayrollLine {
   payroll_line_id: number;
   payroll_period_id: number;
   employee_id: number;
+  employee_code?: string;
+  full_name?: string;
+  department_name?: string;
+  position_name?: string;
   base_salary: number;
   standard_work_days: number;
   actual_work_days: number;

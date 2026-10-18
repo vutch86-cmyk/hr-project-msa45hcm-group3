@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from typing import Optional, List
+from decimal import Decimal
 from sqlalchemy import BigInteger, Integer, String, Boolean, Date, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -88,3 +89,13 @@ class Employee(Base):
                     if "role" in inspect(ra).dict and ra.role and getattr(ra.role, "role_code", None)
                 ]
         return []
+
+    @property
+    def gross_salary(self) -> Optional[Decimal]:
+        """Return current base monthly gross salary without triggering lazy load."""
+        from sqlalchemy import inspect
+        state = inspect(self)
+        if "compensations" in state.dict and self.compensations:
+            active = sorted(self.compensations, key=lambda c: c.effective_from, reverse=True)
+            return active[0].base_monthly_salary
+        return None

@@ -10,6 +10,7 @@ import {
   Modal,
   Form,
   Input,
+  InputNumber,
   Select,
   DatePicker,
   message,
@@ -69,7 +70,7 @@ export const EmployeesPage: React.FC = () => {
   };
 
   const handleUpdateEmployee = async (values: any) => {
-    if (!isAdmin || !editingEmployee || savingEmployee) return;
+    if (!isAdminOrHR || !editingEmployee || savingEmployee) return;
     setSavingEmployee(true);
     try {
       const payload = {
@@ -79,6 +80,7 @@ export const EmployeesPage: React.FC = () => {
         position_id: values.position_id,
         manager_employee_id: values.manager_employee_id ?? null,
         hire_date: values.hire_date.format('YYYY-MM-DD'),
+        ...(values.gross_salary != null ? { gross_salary: Number(values.gross_salary) } : {}),
         ...(editingDemo ? {} : {
           email: values.email,
           employment_status: values.employment_status,
@@ -194,6 +196,7 @@ export const EmployeesPage: React.FC = () => {
         manager_employee_id: values.manager_employee_id || null,
         hire_date: values.hire_date.format('YYYY-MM-DD'),
         employment_status: 'ACTIVE',
+        gross_salary: values.gross_salary != null ? Number(values.gross_salary) : undefined,
       };
 
       const res = await api.post('/employees', payload);
@@ -443,6 +446,20 @@ export const EmployeesPage: React.FC = () => {
                 </Tag>
               ),
             },
+            ...(isAdminOrHR ? [{
+              title: 'Lương Gross HĐ',
+              dataIndex: 'gross_salary',
+              key: 'gross_salary',
+              width: 150,
+              render: (salary: number | null | undefined) =>
+                salary ? (
+                  <b style={{ color: '#0f766e' }}>
+                    {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(salary)}
+                  </b>
+                ) : (
+                  <Text type="secondary" style={{ fontStyle: 'italic', fontSize: 12 }}>Chưa thiết lập</Text>
+                ),
+            }] : []),
             {
               title: 'Thẻ QR',
               key: 'qr_card',
@@ -461,7 +478,7 @@ export const EmployeesPage: React.FC = () => {
                 </Tooltip>
               ),
             },
-            ...(isAdmin ? [{
+            ...(isAdminOrHR ? [{
               title: 'Thao tác',
               key: 'edit_employee',
               width: 210,
@@ -473,6 +490,7 @@ export const EmployeesPage: React.FC = () => {
                     ...record,
                     hire_date: dayjs(record.hire_date),
                     role_code: record.roles?.[0] || 'EMPLOYEE',
+                    gross_salary: record.gross_salary != null ? Number(record.gross_salary) : undefined,
                     new_password: undefined,
                     confirm_password: undefined,
                   });
@@ -480,7 +498,7 @@ export const EmployeesPage: React.FC = () => {
                 }}>
                   Cập nhật nhân viên
                 </Button>
-                {record.has_login_account && !DEMO_EMAILS.has(record.email.toLowerCase()) && (
+                {isAdmin && record.has_login_account && !DEMO_EMAILS.has(record.email.toLowerCase()) && (
                   <Button size="small" danger icon={<DeleteOutlined />} onClick={() => confirmDeleteAccount(record)}>
                     Xóa tài khoản
                   </Button>
@@ -492,7 +510,7 @@ export const EmployeesPage: React.FC = () => {
         />
       </Card>
 
-      {isAdmin && (
+      {isAdminOrHR && (
         <Modal
           open={editingEmployee !== null}
           title="Cập nhật nhân viên"
@@ -504,7 +522,7 @@ export const EmployeesPage: React.FC = () => {
           width={600}
         >
           <p>Mã nhân viên: <b>{editingEmployee?.employee_code}</b></p>
-          {editingEmployee && !editingEmployee.has_login_account && <p>Nhân viên chưa có tài khoản đăng nhập. Nhập mật khẩu mới để tạo tài khoản với quyền Nhân viên, hoặc để trống để chỉ cập nhật hồ sơ.</p>}
+          {editingEmployee && !editingEmployee.has_login_account && <p>Nhân viên chưa có tài khoản đăng nhập. {isAdmin ? 'Nhập mật khẩu mới để tạo tài khoản với quyền Nhân viên, hoặc để trống để chỉ cập nhật hồ sơ.' : 'Liên hệ ADMIN để tạo tài khoản đăng nhập.'}</p>}
           {editingDemo && <p>Tài khoản demo: giữ nguyên email, mật khẩu và trạng thái đăng nhập.</p>}
           <Form form={editForm} layout="vertical" onFinish={handleUpdateEmployee} disabled={savingEmployee}>
             <Form.Item name="full_name" label="Họ và tên" rules={[{ required: true, whitespace: true, max: 200, message: 'Vui lòng nhập họ tên, tối đa 200 ký tự.' }]}>
@@ -515,6 +533,21 @@ export const EmployeesPage: React.FC = () => {
             </Form.Item>
             <Form.Item name="phone_number" label="Số điện thoại" rules={[{ max: 20, message: 'Tối đa 20 ký tự.' }]}>
               <Input />
+            </Form.Item>
+            <Form.Item
+              name="gross_salary"
+              label="Lương Gross theo hợp đồng (VNĐ)"
+              extra="Mức lương thỏa thuận ghi trên HĐLĐ để tính lương kỳ và trích nộp bảo hiểm/thuế."
+              rules={[{ type: 'number', min: 0, message: 'Lương không được nhỏ hơn 0' }]}
+            >
+              <InputNumber
+                style={{ width: '100%' }}
+                placeholder="Ví dụ: 15,000,000"
+                formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                parser={(value) => value ? Number(value.replace(/\$\s?|(,*)/g, '')) as any : ''}
+                min={0}
+                step={500000}
+              />
             </Form.Item>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Form.Item name="department_id" label="Phòng ban" rules={[{ required: true, message: 'Chọn phòng ban.' }]}>
@@ -537,7 +570,7 @@ export const EmployeesPage: React.FC = () => {
                 { value: 'TERMINATED', label: 'Đã nghỉ việc' },
               ]} />
             </Form.Item>
-            {!editingDemo && (
+            {isAdmin && !editingDemo && (
               <Form.Item
                 name="role_code"
                 label="Vai trò (Role)"
@@ -552,7 +585,7 @@ export const EmployeesPage: React.FC = () => {
                 ]} />
               </Form.Item>
             )}
-            {!editingDemo && <>
+            {isAdmin && !editingDemo && <>
               <Form.Item name="new_password" label="Mật khẩu mới (tùy chọn)" extra={editingEmployee?.has_login_account ? "Để trống để giữ nguyên mật khẩu hiện tại." : "Nhập mật khẩu để tạo tài khoản đăng nhập bằng email ở trên."} rules={[
                 { min: 8, message: 'Mật khẩu cần ít nhất 8 ký tự.' },
                 { validator: (_, value) => !value || new TextEncoder().encode(value).length <= 72 ? Promise.resolve() : Promise.reject(new Error('Mật khẩu không được vượt quá 72 byte UTF-8.')) },
@@ -692,6 +725,22 @@ export const EmployeesPage: React.FC = () => {
                 </Select.Option>
               ))}
             </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="gross_salary"
+            label="Lương Gross theo hợp đồng (VNĐ)"
+            extra="Mức lương thỏa thuận ghi trên HĐLĐ để tính lương kỳ và trích nộp bảo hiểm/thuế."
+            rules={[{ type: 'number', min: 0, message: 'Lương không được nhỏ hơn 0' }]}
+          >
+            <InputNumber
+              style={{ width: '100%' }}
+              placeholder="Ví dụ: 15,000,000"
+              formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={(value) => value ? Number(value.replace(/\$\s?|(,*)/g, '')) as any : ''}
+              min={0}
+              step={500000}
+            />
           </Form.Item>
 
           <Form.Item

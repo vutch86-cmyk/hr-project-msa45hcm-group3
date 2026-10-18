@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from typing import Optional, List
+from decimal import Decimal
 from pydantic import BaseModel, EmailStr, ConfigDict, Field, field_validator, AliasChoices, AliasPath
 
 
@@ -70,6 +71,11 @@ class EmployeeCreate(EmployeeBase):
         default="EMPLOYEE",
         description="Role gán cho tài khoản nhân viên: ADMIN, HR, MANAGER, EMPLOYEE, KIOSK"
     )
+    gross_salary: Optional[Decimal] = Field(
+        default=None,
+        ge=0,
+        description="Lương Gross theo hợp đồng (VNĐ)"
+    )
 
     @field_validator("login_password")
     @classmethod
@@ -101,6 +107,11 @@ class EmployeeUpdate(BaseModel):
     hire_date: Optional[date] = None
     termination_date: Optional[date] = None
     dependent_count: Optional[int] = Field(default=None, ge=0, description="Số người phụ thuộc giảm trừ gia cảnh")
+    gross_salary: Optional[Decimal] = Field(
+        default=None,
+        ge=0,
+        description="Lương Gross theo hợp đồng (VNĐ)"
+    )
 
     new_password: Optional[str] = Field(default=None, min_length=8, max_length=72, repr=False)
     role_code: Optional[str] = Field(default=None, description="Role cập nhật: ADMIN, HR, MANAGER, EMPLOYEE, KIOSK")
@@ -154,6 +165,7 @@ class EmployeeResponse(EmployeeBase):
         validation_alias=AliasChoices("has_login_account", AliasPath("user_account", "user_account_id")),
     )
     roles: List[str] = Field(default_factory=list)
+    gross_salary: Optional[Decimal] = None
 
     @field_validator("has_login_account", mode="before")
     @classmethod

@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 from typing import List, Optional
 # pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
@@ -12,6 +13,7 @@ from app.api.deps import require_roles
 from app.models.auth import UserAccount, Role, UserRoleAssignment
 from app.core.security import get_password_hash
 from app.models.organization import Employee, Department, Position
+from app.models.payroll import EmployeeCompensation
 from app.schemas.organization import EmployeeCreate, EmployeeUpdate, EmployeeResponse, EmployeePasswordReset
 
 router = APIRouter()
@@ -30,7 +32,8 @@ async def list_employees(
         selectinload(Employee.department),
         selectinload(Employee.position),
         selectinload(Employee.user_account).selectinload(UserAccount.role_assignments).selectinload(UserRoleAssignment.role),
-        selectinload(Employee.manager)
+        selectinload(Employee.manager),
+        selectinload(Employee.compensations),
     )
     user_roles = {assignment.role.role_code for assignment in current_user.role_assignments}
     if not user_roles.intersection({"ADMIN", "HR"}):
@@ -118,7 +121,7 @@ async def create_employee(
         if account:
             raise HTTPException(status_code=409, detail="Email đăng nhập đã tồn tại")
 
-    emp = Employee(**emp_in.model_dump(exclude={"login_password", "role_code"}))
+    emp = Employee(**emp_in.model_dump(exclude={"login_password", "role_code", "gross_salary"}))
     try:
         db.add(emp)
         await db.flush()
@@ -135,6 +138,18 @@ async def create_employee(
                 user_account_id=account.user_account_id,
                 role_id=role_obj.role_id,
             ))
+            await db.flush()
+
+        if emp_in.gross_salary is not None:
+            comp = EmployeeCompensation(
+                employee_id=emp.employee_id,
+                base_monthly_salary=emp_in.gross_salary,
+                fixed_allowance=Decimal("0.00"),
+                currency_code="VND",
+                effective_from=emp.hire_date,
+                created_by_user_id=current_user.user_account_id,
+            )
+            db.add(comp)
             await db.flush()
 
         # If role is MANAGER, initialize their annual leave balance to 18 days for current year
@@ -163,7 +178,8 @@ async def create_employee(
         selectinload(Employee.department),
         selectinload(Employee.position),
         selectinload(Employee.user_account).selectinload(UserAccount.role_assignments).selectinload(UserRoleAssignment.role),
-        selectinload(Employee.manager)
+        selectinload(Employee.manager),
+        selectinload(Employee.compensations),
     )
     loaded_emp = (await db.execute(stmt_load)).scalar_one()
     return loaded_emp
@@ -180,7 +196,8 @@ async def get_employee(
         selectinload(Employee.department),
         selectinload(Employee.position),
         selectinload(Employee.user_account).selectinload(UserAccount.role_assignments).selectinload(UserRoleAssignment.role),
-        selectinload(Employee.manager)
+        selectinload(Employee.manager),
+        selectinload(Employee.compensations),
     )
     emp = (await db.execute(stmt)).scalar_one_or_none()
     if not emp:
@@ -214,7 +231,7 @@ async def update_employee(
             detail="Không tìm thấy nhân viên"
         )
 
-    update_data = emp_update.model_dump(exclude_unset=True, exclude={"new_password", "role_code"})
+    update_data = emp_update.model_dump(exclude_unset=True, exclude={"new_password", "role_code", "gross_salary"})
     account = (await db.execute(
         select(UserAccount).where(UserAccount.employee_id == employee_id)
     )).scalar_one_or_none()
@@ -320,6 +337,25 @@ async def update_employee(
 
     # Update profile and login account in the same transaction.
     try:
+        if emp_update.gross_salary is not None:
+            stmt_comp = (
+                select(EmployeeCompensation)
+                .where(EmployeeCompensation.employee_id == employee_id)
+                .order_by(EmployeeCompensation.effective_from.desc())
+            )
+            existing_comp = (await db.execute(stmt_comp)).scalars().first()
+            if existing_comp:
+                existing_comp.base_monthly_salary = emp_update.gross_salary
+            else:
+                comp = EmployeeCompensation(
+                    employee_id=employee_id,
+                    base_monthly_salary=emp_update.gross_salary,
+                    fixed_allowance=Decimal("0.00"),
+                    currency_code="VND",
+                    effective_from=emp.hire_date,
+                    created_by_user_id=current_user.user_account_id,
+                )
+                db.add(comp)
         for field, value in update_data.items():
             setattr(emp, field, value)
         if account:
@@ -352,7 +388,8 @@ async def update_employee(
         selectinload(Employee.department),
         selectinload(Employee.position),
         selectinload(Employee.user_account).selectinload(UserAccount.role_assignments).selectinload(UserRoleAssignment.role),
-        selectinload(Employee.manager)
+        selectinload(Employee.manager),
+        selectinload(Employee.compensations),
     )
     loaded_emp = (await db.execute(stmt_load)).scalar_one()
     return loaded_emp

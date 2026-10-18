@@ -316,14 +316,34 @@ export const PayrollPage: React.FC = () => {
                           dataSource={lines}
                           rowKey="payroll_line_id"
                           loading={loadingLines}
-                          scroll={{ x: 1100 }}
+                          scroll={{ x: 1250 }}
                           columns={[
                             {
                               title: 'Mã NV',
-                              dataIndex: 'employee_id',
-                              key: 'employee_id',
-                              width: 90,
-                              render: (id) => <Tag color="blue">NV#{id}</Tag>,
+                              dataIndex: 'employee_code',
+                              key: 'employee_code',
+                              width: 110,
+                              render: (code: string, record: PayrollLine) => (
+                                <Tag color="blue" style={{ fontWeight: 600 }}>
+                                  {code || record.employee?.employee_code || `NV#${record.employee_id}`}
+                                </Tag>
+                              ),
+                            },
+                            {
+                              title: 'Họ và tên',
+                              dataIndex: 'full_name',
+                              key: 'full_name',
+                              width: 180,
+                              render: (name: string, record: PayrollLine) => (
+                                <div>
+                                  <div style={{ fontWeight: 600 }}>{name || record.employee?.full_name || '—'}</div>
+                                  {(record.department_name || record.employee?.department?.department_name) && (
+                                    <div style={{ fontSize: 11, color: '#64748b' }}>
+                                      {record.department_name || record.employee?.department?.department_name}
+                                    </div>
+                                  )}
+                                </div>
+                              ),
                             },
                             {
                               title: 'Lương Gross',
@@ -396,7 +416,28 @@ export const PayrollPage: React.FC = () => {
                         title: 'Kỳ lương ID',
                         dataIndex: 'payroll_period_id',
                         key: 'payroll_period_id',
+                        width: 100,
                         render: (id) => <Tag color="geekblue">Kỳ #{id}</Tag>,
+                      },
+                      {
+                        title: 'Mã NV',
+                        dataIndex: 'employee_code',
+                        key: 'employee_code',
+                        width: 110,
+                        render: (code: string, record: PayrollLine) => (
+                          <Tag color="blue" style={{ fontWeight: 600 }}>
+                            {code || record.employee?.employee_code || `NV#${record.employee_id}`}
+                          </Tag>
+                        ),
+                      },
+                      {
+                        title: 'Họ và tên',
+                        dataIndex: 'full_name',
+                        key: 'full_name',
+                        width: 170,
+                        render: (name: string, record: PayrollLine) => (
+                          <b>{name || record.employee?.full_name || '—'}</b>
+                        ),
                       },
                       {
                         title: 'Lương hợp đồng (Gross)',

@@ -36,6 +36,7 @@ _LEGACY_DB_TEST_MODULES = frozenset({
     "test_attendance_and_payroll_half_day.py",
     "test_payroll_dependent_and_leave_rules.py",
     "test_role_and_leave_quota.py",
+    "test_gross_salary_and_payroll_report.py",
 })
 
 

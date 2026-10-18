@@ -79,3 +79,29 @@ class PayrollLine(Base):
     # Relationships
     period: Mapped["PayrollPeriod"] = relationship("PayrollPeriod", back_populates="lines")
     employee: Mapped["Employee"] = relationship("Employee", back_populates="payroll_lines")
+
+    @property
+    def employee_code(self) -> Optional[str]:
+        from sqlalchemy import inspect
+        state = inspect(self)
+        if "employee" in state.dict and self.employee:
+            return self.employee.employee_code
+        return None
+
+    @property
+    def full_name(self) -> Optional[str]:
+        from sqlalchemy import inspect
+        state = inspect(self)
+        if "employee" in state.dict and self.employee:
+            return self.employee.full_name
+        return None
+
+    @property
+    def department_name(self) -> Optional[str]:
+        from sqlalchemy import inspect
+        state = inspect(self)
+        if "employee" in state.dict and self.employee:
+            emp_state = inspect(self.employee)
+            if "department" in emp_state.dict and self.employee.department:
+                return self.employee.department.department_name
+        return None

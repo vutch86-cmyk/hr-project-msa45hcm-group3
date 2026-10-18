@@ -39,6 +39,9 @@ class PayrollLineResponse(BaseModel):
     payroll_line_id: int
     payroll_period_id: int
     employee_id: int
+    employee_code: Optional[str] = None
+    full_name: Optional[str] = None
+    department_name: Optional[str] = None
     currency_code: str | None = None
     base_salary: Decimal
     standard_work_days: Decimal
