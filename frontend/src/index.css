@@ -95,3 +95,30 @@ html, body, #root {
 .hrms-content .ant-table-content {
   overflow-x: auto;
 }
+
+/* Match the neighboring Google sign-in button's typography and outline. */
+.microsoft-login-button.ant-btn {
+  position: relative;
+  height: 40px;
+  margin-bottom: 16px;
+  padding-inline: 40px;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  background: #fff;
+  color: #3c4043;
+  box-shadow: none;
+  font-family: Roboto, Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.25px;
+}
+
+.microsoft-login-button.ant-btn .ant-btn-icon {
+  position: absolute;
+  inset-inline-start: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+}

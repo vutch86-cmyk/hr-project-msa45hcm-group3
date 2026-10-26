@@ -220,8 +220,16 @@ export const LoginPage: React.FC = () => {
         </div>
 
         {microsoftReady && (
-          <Button block size="large" loading={loading} onClick={handleMicrosoftLogin}
-            style={{ borderRadius: 8, marginBottom: 16 }}>
+          <Button block loading={loading} onClick={handleMicrosoftLogin}
+            className="microsoft-login-button"
+            icon={
+              <svg width="18" height="18" viewBox="0 0 21 21" aria-hidden="true" focusable="false">
+                <path fill="#f25022" d="M1 1h9v9H1z" />
+                <path fill="#7fba00" d="M11 1h9v9h-9z" />
+                <path fill="#00a4ef" d="M1 11h9v9H1z" />
+                <path fill="#ffb900" d="M11 11h9v9h-9z" />
+              </svg>
+            }>
             Đăng nhập bằng Microsoft
           </Button>
         )}
