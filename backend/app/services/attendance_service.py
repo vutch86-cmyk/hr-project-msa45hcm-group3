@@ -90,6 +90,9 @@ class AttendanceService:
         if not emp:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
 
+        if emp.employment_status == "PENDING":
+            raise HTTPException(status_code=403, detail="Cần hoàn thiện hồ sơ nhân viên trước khi cấp thẻ QR.")
+
         # Use custom code or generate unique secure card token
         raw_token = custom_code or f"HRG3-{emp.employee_code}-{secrets.token_hex(16).upper()}"
         t_hash = hash_token(raw_token)
@@ -155,6 +158,8 @@ class AttendanceService:
 
         if not qr_card:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or revoked QR card")
+        if qr_card.employee.employment_status == "PENDING":
+            raise HTTPException(status_code=403, detail="Hồ sơ nhân viên đang chờ hoàn thiện.")
         if qr_card.expires_at and qr_card.expires_at < datetime.now(timezone.utc):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="QR card has expired")
 

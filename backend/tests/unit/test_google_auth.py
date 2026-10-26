@@ -29,7 +29,7 @@ async def test_google_provider_errors_return_401_without_database(monkeypatch, p
 @pytest.mark.asyncio
 @pytest.mark.parametrize("active, expected", [(True, 200), (False, 403), (None, 403)])
 async def test_verified_google_identity_requires_existing_active_account(monkeypatch, active, expected):
-    user = None if active is None else SimpleNamespace(user_account_id=7, is_active=active)
+    user = None if active is None else SimpleNamespace(user_account_id=7, is_active=active, password_hash="local-hash")
     db = AsyncMock()
     db.execute.return_value = SimpleNamespace(scalar_one_or_none=lambda: user)
     app = FastAPI()

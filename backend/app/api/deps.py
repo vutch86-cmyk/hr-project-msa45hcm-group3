@@ -15,7 +15,7 @@ from app.core.authorization import authenticated_roles, has_hr_role
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_PREFIX}/auth/login")
 
 
-async def get_current_user(
+async def get_session_user(
     db: AsyncSession = Depends(get_db),
     token: str = Depends(oauth2_scheme)
 ) -> UserAccount:
@@ -54,6 +54,12 @@ async def get_current_user(
         )
     
     return user
+
+
+async def get_current_user(current_user: UserAccount = Depends(get_session_user)) -> UserAccount:
+    if current_user.employee.employment_status == "PENDING":
+        raise HTTPException(status_code=403, detail="Hồ sơ nhân viên đang chờ HR hoàn thiện.")
+    return current_user
 
 
 def require_roles(allowed_roles: List[str]):

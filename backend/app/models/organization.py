@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Optional, List
 from decimal import Decimal
-from sqlalchemy import BigInteger, Integer, String, Boolean, Date, DateTime, ForeignKey
+from sqlalchemy import BigInteger, Integer, String, Boolean, Date, DateTime, ForeignKey, CheckConstraint, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -49,17 +49,22 @@ class Employee(Base):
     email: Mapped[str] = mapped_column(String(254), unique=True, nullable=False, index=True)
     phone_number: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     date_of_birth: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-    department_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("hr_departments.department_id"), nullable=False)
-    position_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("hr_positions.position_id"), nullable=False)
+    department_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("hr_departments.department_id"), nullable=True)
+    position_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("hr_positions.position_id"), nullable=True)
     manager_employee_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("hr_employees.employee_id"), nullable=True)
     employment_status: Mapped[str] = mapped_column(String(20), default="ACTIVE", nullable=False)  # ACTIVE, INACTIVE, TERMINATED
-    hire_date: Mapped[date] = mapped_column(Date, nullable=False)
+    hire_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     termination_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     # [FIX #7] Number of tax dependents for PIT deduction (4,400,000 VND per dependent).
     # Requires DB migration: alembic revision --autogenerate -m "add_dependent_count"
     dependent_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (CheckConstraint(
+        "employment_status <> 'ACTIVE' OR (department_id IS NOT NULL AND position_id IS NOT NULL AND hire_date IS NOT NULL)",
+        name="ck_hr_employee_active_profile",
+    ), Index("uq_hr_employee_email_ci", func.lower(email), unique=True))
 
     # Relationships
     department: Mapped["Department"] = relationship("Department", back_populates="employees", foreign_keys=[department_id])
@@ -74,6 +79,11 @@ class Employee(Base):
     leave_requests: Mapped[List["LeaveRequest"]] = relationship("LeaveRequest", back_populates="employee", foreign_keys="[LeaveRequest.employee_id]")
     compensations: Mapped[List["EmployeeCompensation"]] = relationship("EmployeeCompensation", back_populates="employee")
     payroll_lines: Mapped[List["PayrollLine"]] = relationship("PayrollLine", back_populates="employee")
+
+    @property
+    def microsoft_only(self) -> bool:
+        from sqlalchemy import inspect
+        return "user_account" in inspect(self).dict and self.user_account is not None and self.user_account.password_hash is None
 
     @property
     def roles(self) -> List[str]:

@@ -5,6 +5,7 @@ import viVN from 'antd/locale/vi_VN';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { MainLayout } from './components/MainLayout';
 import { LoginPage } from './pages/LoginPage';
+import { PendingProfilePage } from './pages/PendingProfilePage';
 import { DashboardPage } from './pages/DashboardPage';
 import { AttendancePage } from './pages/AttendancePage';
 import { LeavePage } from './pages/LeavePage';
@@ -41,6 +42,8 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; requiredRoles?: stri
   if (!user) {
     return <Navigate to="/login" replace />;
   }
+
+  if (user.onboarding_required) return <PendingProfilePage />;
 
   if (requiredRoles && !hasRole(requiredRoles)) {
     const isKioskOnly = hasRole(['KIOSK']) && !hasRole(['ADMIN', 'HR', 'MANAGER', 'EMPLOYEE']);

@@ -7,7 +7,7 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, pass: string) => Promise<void>;
   loginWithGoogle: (idToken: string) => Promise<void>;
-  loginWithMicrosoft: (idToken: string) => Promise<void>;
+  loginWithMicrosoft: (idToken: string, localPassword?: string) => Promise<void>;
   logout: () => void;
   hasRole: (role: string | string[]) => boolean;
 }
@@ -54,11 +54,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await fetchProfile();
   };
 
-  const loginWithMicrosoft = async (idToken: string) => {
-    const res = await api.post('/auth/login/microsoft', { id_token: idToken });
+  const loginWithMicrosoft = async (idToken: string, localPassword?: string) => {
+    const res = await api.post('/auth/login/microsoft', { id_token: idToken, local_password: localPassword });
     localStorage.setItem('access_token', res.data.access_token);
     localStorage.setItem('refresh_token', res.data.refresh_token);
-    await fetchProfile();
+    try {
+      const profile = await api.get('/auth/me');
+      setUser(profile.data);
+    } catch (error) {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      setUser(null);
+      throw error;
+    }
   };
 
   const logout = () => {

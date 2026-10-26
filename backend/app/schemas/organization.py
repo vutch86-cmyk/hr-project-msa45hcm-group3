@@ -157,6 +157,9 @@ class ManagerBriefResponse(BaseModel):
 
 
 class EmployeeResponse(EmployeeBase):
+    department_id: Optional[int] = None
+    position_id: Optional[int] = None
+    hire_date: Optional[date] = None
     model_config = ConfigDict(from_attributes=True)
 
     employee_id: int
@@ -164,6 +167,7 @@ class EmployeeResponse(EmployeeBase):
         default=False,
         validation_alias=AliasChoices("has_login_account", AliasPath("user_account", "user_account_id")),
     )
+    microsoft_only: bool = False
     roles: List[str] = Field(default_factory=list)
     gross_salary: Optional[Decimal] = None
 

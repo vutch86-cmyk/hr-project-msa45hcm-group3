@@ -17,6 +17,7 @@ export const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(() => query.get('reason') === 'session-expired' ? SESSION_EXPIRED_MESSAGE : null);
 
+  const [microsoftLinkToken, setMicrosoftLinkToken] = useState<string | null>(null);
   const [microsoftReady, setMicrosoftReady] = useState(false);
   const [microsoftSetupError, setMicrosoftSetupError] = useState(false);
   useEffect(() => {
@@ -28,17 +29,45 @@ export const LoginPage: React.FC = () => {
   }, []);
 
   const handleMicrosoftLogin = async () => {
+    setMicrosoftLinkToken(null);
     setLoading(true);
     setErrorMsg(null);
     try {
       const client = await getMicrosoftClient();
       if (!client) throw new Error('Microsoft login is unavailable');
-      const result = await client.loginPopup({ scopes: ['openid', 'profile'], prompt: 'select_account' });
-      await loginWithMicrosoft(result.idToken);
-      navigate('/dashboard');
+      const result = await client.loginPopup({ scopes: ['openid', 'profile', 'email'], prompt: 'select_account' });
+      try {
+        await loginWithMicrosoft(result.idToken);
+        setMicrosoftLinkToken(null);
+        navigate('/dashboard');
+      } catch (error: any) {
+        if (error.response?.data?.detail?.code === 'MICROSOFT_LINK_REQUIRED') setMicrosoftLinkToken(result.idToken);
+        throw error;
+      }
     } catch (err: any) {
       if (err.errorCode === 'user_cancelled') return;
-      setErrorMsg(err.response?.data?.detail || 'Không thể đăng nhập Microsoft. Vui lòng cho phép cửa sổ bật lên và thử lại.');
+      const detail = err.response?.data?.detail;
+      if (detail?.code === 'MICROSOFT_LINK_REQUIRED') {
+        setErrorMsg(detail.message);
+      } else {
+        setErrorMsg(typeof detail === 'string' ? detail : 'Không thể đăng nhập Microsoft. Vui lòng cho phép cửa sổ bật lên và thử lại.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMicrosoftLink = async (values: { localPassword: string }) => {
+    if (!microsoftLinkToken) return;
+    setLoading(true);
+    setErrorMsg(null);
+    try {
+      await loginWithMicrosoft(microsoftLinkToken, values.localPassword);
+      setMicrosoftLinkToken(null);
+      navigate('/dashboard');
+    } catch (err: any) {
+      const detail = err.response?.data?.detail;
+      setErrorMsg(typeof detail === 'string' ? detail : 'Không thể liên kết tài khoản. Vui lòng thử lại.');
     } finally {
       setLoading(false);
     }
@@ -232,6 +261,21 @@ export const LoginPage: React.FC = () => {
             }>
             Đăng nhập bằng Microsoft
           </Button>
+        )}
+        {microsoftLinkToken && (
+          <Form layout="vertical" onFinish={handleMicrosoftLink} preserve={false}>
+            <Alert type="info" showIcon style={{ marginBottom: 12 }}
+              message="Xác nhận liên kết tài khoản hiện có"
+              description="Nhập mật khẩu HRMS một lần. Những lần sau anh/chị chỉ cần đăng nhập Microsoft." />
+            <Form.Item name="localPassword" label="Mật khẩu HRMS hiện tại"
+              rules={[{ required: true, message: 'Vui lòng nhập mật khẩu HRMS.' }]}>
+              <Input.Password autoComplete="current-password" disabled={loading} />
+            </Form.Item>
+            <Space style={{ marginBottom: 16 }}>
+              <Button type="primary" htmlType="submit" loading={loading}>Xác nhận liên kết</Button>
+              <Button disabled={loading} onClick={() => { setMicrosoftLinkToken(null); setErrorMsg(null); }}>Hủy</Button>
+            </Space>
+          </Form>
         )}
         {microsoftSetupError && <Alert type="warning" showIcon style={{ marginBottom: 16 }}
           message="Chưa tải được đăng nhập Microsoft. Vui lòng tải lại trang để thử lại." />}

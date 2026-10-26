@@ -442,7 +442,7 @@ export const EmployeesPage: React.FC = () => {
               width: 160,
               render: (s) => (
                 <Tag color={s === 'ACTIVE' ? 'success' : 'default'}>
-                  {s === 'ACTIVE' ? 'Đang làm việc' : s === 'TERMINATED' ? 'Đã nghỉ việc' : s === 'INACTIVE' ? 'Tạm ngưng' : s}
+                  {s === 'ACTIVE' ? 'Đang làm việc' : s === 'TERMINATED' ? 'Đã nghỉ việc' : s === 'INACTIVE' ? 'Tạm ngưng' : s === 'PENDING' ? 'Chờ hoàn thiện' : s}
                 </Tag>
               ),
             },
@@ -488,7 +488,8 @@ export const EmployeesPage: React.FC = () => {
                   editForm.resetFields();
                   editForm.setFieldsValue({
                     ...record,
-                    hire_date: dayjs(record.hire_date),
+                    hire_date: record.hire_date ? dayjs(record.hire_date) : undefined,
+                    employment_status: record.employment_status === 'PENDING' ? 'ACTIVE' : record.employment_status,
                     role_code: record.roles?.[0] || 'EMPLOYEE',
                     gross_salary: record.gross_salary != null ? Number(record.gross_salary) : undefined,
                     new_password: undefined,
@@ -585,7 +586,7 @@ export const EmployeesPage: React.FC = () => {
                 ]} />
               </Form.Item>
             )}
-            {isAdmin && !editingDemo && <>
+            {isAdmin && !editingDemo && !editingEmployee?.microsoft_only && <>
               <Form.Item name="new_password" label="Mật khẩu mới (tùy chọn)" extra={editingEmployee?.has_login_account ? "Để trống để giữ nguyên mật khẩu hiện tại." : "Nhập mật khẩu để tạo tài khoản đăng nhập bằng email ở trên."} rules={[
                 { min: 8, message: 'Mật khẩu cần ít nhất 8 ký tự.' },
                 { validator: (_, value) => !value || new TextEncoder().encode(value).length <= 72 ? Promise.resolve() : Promise.reject(new Error('Mật khẩu không được vượt quá 72 byte UTF-8.')) },

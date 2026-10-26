@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.api.deps import require_roles
-from app.models.auth import UserAccount, Role, UserRoleAssignment
+from app.models.auth import UserAccount, Role, UserRoleAssignment, MicrosoftIdentity
 from app.core.security import get_password_hash
 from app.models.organization import Employee, Department, Position
 from app.models.payroll import EmployeeCompensation
@@ -329,6 +329,15 @@ async def update_employee(
                 detail="Người quản lý không tồn tại"
             )
 
+    resulting_status = update_data.get("employment_status", emp.employment_status)
+    if resulting_status == "ACTIVE" and any(update_data.get(field, getattr(emp, field)) is None
+                                            for field in ("department_id", "position_id", "hire_date")):
+        raise HTTPException(status_code=400, detail="Cần bổ sung phòng ban, chức danh và ngày vào làm trước khi kích hoạt nhân viên.")
+    if emp_update.gross_salary is not None and update_data.get("hire_date", emp.hire_date) is None:
+        raise HTTPException(status_code=400, detail="Cần ngày vào làm trước khi thiết lập lương.")
+    if account and not account.password_hash and emp_update.new_password is not None:
+        raise HTTPException(status_code=400, detail="Tài khoản Microsoft quản lý mật khẩu tại Entra ID.")
+
     if "employment_status" in update_data:
         if update_data["employment_status"] == "ACTIVE":
             update_data["termination_date"] = None
@@ -352,7 +361,7 @@ async def update_employee(
                     base_monthly_salary=emp_update.gross_salary,
                     fixed_allowance=Decimal("0.00"),
                     currency_code="VND",
-                    effective_from=emp.hire_date,
+                    effective_from=update_data.get("hire_date", emp.hire_date),
                     created_by_user_id=current_user.user_account_id,
                 )
                 db.add(comp)
@@ -427,6 +436,8 @@ async def reset_employee_password(
     if account.login_email.lower() in DEMO_EMAILS:
         raise HTTPException(status_code=400, detail="Không được đổi mật khẩu của tài khoản demo")
 
+    if not account.password_hash:
+        raise HTTPException(status_code=400, detail="Tài khoản Microsoft quản lý mật khẩu tại Entra ID.")
     account.password_hash = get_password_hash(password_in.new_password)
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -452,6 +463,7 @@ async def delete_employee_account(
         await db.execute(delete(UserRoleAssignment).where(
             UserRoleAssignment.user_account_id == account.user_account_id
         ))
+        await db.execute(delete(MicrosoftIdentity).where(MicrosoftIdentity.user_account_id == account.user_account_id))
         await db.delete(account)
         await db.commit()
     except IntegrityError:

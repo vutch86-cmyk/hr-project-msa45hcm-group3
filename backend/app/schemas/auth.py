@@ -13,6 +13,7 @@ class GoogleLoginRequest(BaseModel):
 
 class MicrosoftLoginRequest(BaseModel):
     id_token: str = Field(min_length=1, max_length=16384)
+    local_password: Optional[str] = Field(default=None, min_length=1, max_length=72, repr=False)
 
 
 class Token(BaseModel):
@@ -43,3 +44,4 @@ class UserResponse(BaseModel):
     login_email: str
     is_active: bool
     roles: List[str] = []
+    onboarding_required: bool = False

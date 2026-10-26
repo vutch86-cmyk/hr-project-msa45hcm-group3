@@ -4,22 +4,24 @@ export interface User {
   login_email: string;
   is_active: boolean;
   roles: string[];
+  onboarding_required?: boolean;
 }
 
 export interface Employee {
   employee_id: number;
   has_login_account: boolean;
+  microsoft_only?: boolean;
   roles?: string[];
   employee_code: string;
   full_name: string;
   email: string;
   phone_number?: string;
   date_of_birth?: string;
-  department_id: number;
-  position_id: number;
+  department_id: number | null;
+  position_id: number | null;
   manager_employee_id?: number;
   employment_status: string;
-  hire_date: string;
+  hire_date: string | null;
   termination_date?: string;
   gross_salary?: number;
   department?: { department_name: string };

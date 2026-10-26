@@ -12,10 +12,12 @@ from app.core.security import verify_password, create_access_token, create_refre
 from app.core.config import settings
 from app.models.auth import UserAccount, UserRoleAssignment
 from app.schemas.auth import LoginRequest, Token, UserResponse, GoogleLoginRequest, MicrosoftLoginRequest
-from app.api.deps import get_current_user
+from app.api.deps import get_session_user
 
 from starlette.concurrency import run_in_threadpool
 from app.core.microsoft_auth import microsoft_configuration, verify_microsoft_token
+from app.services.microsoft_provisioning import provision_microsoft_user
+from sqlalchemy.exc import IntegrityError
 
 router = APIRouter()
 
@@ -34,7 +36,7 @@ async def login(login_data: LoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
-    if not user or not verify_password(login_data.password, user.password_hash):
+    if not user or not user.password_hash or not verify_password(login_data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -110,6 +112,8 @@ async def login_with_google(login_data: GoogleLoginRequest, db: AsyncSession = D
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Tài khoản hiện đang bị khóa."
         )
+    if user.password_hash is None:
+        raise HTTPException(status_code=403, detail="Tài khoản này sử dụng đăng nhập Microsoft.")
 
     user.last_login_at = datetime.now(timezone.utc)
     await db.commit()
@@ -122,7 +126,7 @@ async def login_with_google(login_data: GoogleLoginRequest, db: AsyncSession = D
 
 @router.get("/microsoft/config")
 async def get_microsoft_config():
-    """Only public SPA metadata; account bindings are never returned."""
+    """Only public SPA metadata; identity links are stored privately in the database."""
     config = microsoft_configuration()
     if config is None:
         return {"enabled": False}
@@ -134,15 +138,13 @@ async def get_microsoft_config():
 async def login_with_microsoft(login_data: MicrosoftLoginRequest, db: AsyncSession = Depends(get_db)):
     # JWKS network access and signature verification must not block the event loop.
     claims = await run_in_threadpool(verify_microsoft_token, login_data.id_token)
-    email = settings.MICROSOFT_ACCOUNT_BINDINGS.get(claims["oid"])
-    if not email:
-        raise HTTPException(status_code=403, detail="Tài khoản Microsoft chưa được liên kết với tài khoản HRMS. Vui lòng liên hệ quản trị viên.")
-    result = await db.execute(select(UserAccount).where(UserAccount.login_email == email))
-    user = result.scalar_one_or_none()
-    if not user or not user.is_active:
-        raise HTTPException(status_code=403, detail="Tài khoản HRMS chưa được cấp quyền hoặc đang bị khóa.")
-    user.last_login_at = datetime.now(timezone.utc)
-    await db.commit()
+    try:
+        user = await provision_microsoft_user(db, claims, login_data.local_password)
+        user.last_login_at = datetime.now(timezone.utc)
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="Tài khoản vừa được cập nhật. Vui lòng đăng nhập lại.") from None
     return Token(
         access_token=create_access_token(subject=user.user_account_id),
         refresh_token=create_refresh_token(subject=user.user_account_id),
@@ -150,7 +152,7 @@ async def login_with_microsoft(login_data: MicrosoftLoginRequest, db: AsyncSessi
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_current_user_profile(current_user: UserAccount = Depends(get_current_user)):
+async def get_current_user_profile(current_user: UserAccount = Depends(get_session_user)):
     """Return profile and active roles of current authenticated user"""
     roles = [ra.role.role_code for ra in current_user.role_assignments]
     return UserResponse(
@@ -158,5 +160,6 @@ async def get_current_user_profile(current_user: UserAccount = Depends(get_curre
         employee_id=current_user.employee_id,
         login_email=current_user.login_email,
         is_active=current_user.is_active,
-        roles=roles
+        roles=roles,
+        onboarding_required=current_user.employee.employment_status == "PENDING",
     )

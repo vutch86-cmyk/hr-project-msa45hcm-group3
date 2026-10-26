@@ -85,8 +85,6 @@ class Settings(BaseSettings):
     # Single-tenant Microsoft Entra login; empty values keep it disabled.
     MICROSOFT_CLIENT_ID: str = ""
     MICROSOFT_TENANT_ID: str = ""
-    # Administrator-managed object ID -> existing HRMS login email. Never auto-link email claims.
-    MICROSOFT_ACCOUNT_BINDINGS: dict[str, str] = Field(default_factory=dict)
 
     # CORS
     CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"]

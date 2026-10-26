@@ -1,6 +1,6 @@
 from app.core.database import Base
 from app.models.organization import Department, Position, Employee
-from app.models.auth import Role, UserAccount, UserRoleAssignment
+from app.models.auth import Role, UserAccount, UserRoleAssignment, MicrosoftIdentity
 from app.models.holiday import Holiday
 from app.models.attendance import QRCard, AttendanceEvent, AttendanceDay, AttendanceFix
 from app.models.leave import LeaveType, EmployeeLeaveBalance, LeaveRequest
@@ -17,6 +17,7 @@ __all__ = [
     "Role",
     "UserAccount",
     "UserRoleAssignment",
+    "MicrosoftIdentity",
     "Holiday",
     "QRCard",
     "AttendanceEvent",

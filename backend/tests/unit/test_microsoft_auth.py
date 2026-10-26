@@ -22,7 +22,6 @@ OID = '33333333-3333-4333-8333-333333333333'
 def identity(monkeypatch):
     monkeypatch.setattr(auth.settings, 'MICROSOFT_CLIENT_ID', CLIENT)
     monkeypatch.setattr(auth.settings, 'MICROSOFT_TENANT_ID', TENANT)
-    monkeypatch.setattr(auth.settings, 'MICROSOFT_ACCOUNT_BINDINGS', {OID: 'employee@hrgroup3.com'})
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     jwks = Mock()
     jwks.get_signing_key_from_jwt.return_value = SimpleNamespace(key=key.public_key())
@@ -46,16 +45,15 @@ async def request(token, active=True):
         response = await client.post('/auth/login/microsoft', json={'id_token': token})
     return response, db
 
-@pytest.mark.parametrize('active,expected', [(True, 200), (False, 403), (None, 403)])
-async def test_existing_active_bound_account_only(identity, active, expected):
+async def test_valid_token_is_passed_to_provisioning(identity, monkeypatch):
     token, _ = identity
-    response, db = await request(token(), active)
-    assert response.status_code == expected
-    if expected == 200:
-        assert response.json()['access_token'] and response.json()['refresh_token']
-        db.commit.assert_awaited_once()
-    else:
-        db.commit.assert_not_awaited()
+    provision = AsyncMock(return_value=SimpleNamespace(user_account_id=7))
+    monkeypatch.setattr(auth, 'provision_microsoft_user', provision)
+    response, db = await request(token())
+    assert response.status_code == 200
+    assert response.json()['access_token']
+    assert provision.await_args.args[1]['oid'] == OID
+    db.commit.assert_awaited_once()
 
 @pytest.mark.parametrize('changes', [
     {'aud': 'wrong-client'}, {'iss': 'https://attacker.test'}, {'tid': CLIENT},
@@ -65,12 +63,6 @@ async def test_claim_validation_before_database(identity, changes):
     token, _ = identity
     response, db = await request(token(**changes))
     assert response.status_code == 401
-    db.execute.assert_not_awaited()
-
-async def test_unbound_identity_cannot_take_over_account_by_email(identity):
-    token, _ = identity
-    response, db = await request(token(oid=CLIENT, email='employee@hrgroup3.com', preferred_username='employee@hrgroup3.com'))
-    assert response.status_code == 403
     db.execute.assert_not_awaited()
 
 @pytest.mark.parametrize('bad_token', ['not-a-jwt', jwt.encode({'sub': 'test'}, 'test-key-with-at-least-32-characters', algorithm='HS256')])
