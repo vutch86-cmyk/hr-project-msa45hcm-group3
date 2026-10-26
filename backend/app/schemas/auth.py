@@ -1,5 +1,5 @@
 from typing import List, Optional
-from pydantic import BaseModel, EmailStr, ConfigDict
+from pydantic import BaseModel, EmailStr, ConfigDict, Field
 
 
 class LoginRequest(BaseModel):
@@ -9,6 +9,10 @@ class LoginRequest(BaseModel):
 
 class GoogleLoginRequest(BaseModel):
     id_token: str
+
+
+class MicrosoftLoginRequest(BaseModel):
+    id_token: str = Field(min_length=1, max_length=16384)
 
 
 class Token(BaseModel):

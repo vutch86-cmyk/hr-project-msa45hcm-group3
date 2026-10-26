@@ -11,8 +11,11 @@ from app.core.database import get_db
 from app.core.security import verify_password, create_access_token, create_refresh_token
 from app.core.config import settings
 from app.models.auth import UserAccount, UserRoleAssignment
-from app.schemas.auth import LoginRequest, Token, UserResponse, GoogleLoginRequest
+from app.schemas.auth import LoginRequest, Token, UserResponse, GoogleLoginRequest, MicrosoftLoginRequest
 from app.api.deps import get_current_user
+
+from starlette.concurrency import run_in_threadpool
+from app.core.microsoft_auth import microsoft_configuration, verify_microsoft_token
 
 router = APIRouter()
 
@@ -115,6 +118,35 @@ async def login_with_google(login_data: GoogleLoginRequest, db: AsyncSession = D
     refresh_token = create_refresh_token(subject=user.user_account_id)
 
     return Token(access_token=access_token, refresh_token=refresh_token)
+
+
+@router.get("/microsoft/config")
+async def get_microsoft_config():
+    """Only public SPA metadata; account bindings are never returned."""
+    config = microsoft_configuration()
+    if config is None:
+        return {"enabled": False}
+    client_id, tenant_id = config
+    return {"enabled": True, "client_id": client_id, "tenant_id": tenant_id}
+
+
+@router.post("/login/microsoft", response_model=Token)
+async def login_with_microsoft(login_data: MicrosoftLoginRequest, db: AsyncSession = Depends(get_db)):
+    # JWKS network access and signature verification must not block the event loop.
+    claims = await run_in_threadpool(verify_microsoft_token, login_data.id_token)
+    email = settings.MICROSOFT_ACCOUNT_BINDINGS.get(claims["oid"])
+    if not email:
+        raise HTTPException(status_code=403, detail="Tài khoản Microsoft chưa được liên kết với tài khoản HRMS. Vui lòng liên hệ quản trị viên.")
+    result = await db.execute(select(UserAccount).where(UserAccount.login_email == email))
+    user = result.scalar_one_or_none()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=403, detail="Tài khoản HRMS chưa được cấp quyền hoặc đang bị khóa.")
+    user.last_login_at = datetime.now(timezone.utc)
+    await db.commit()
+    return Token(
+        access_token=create_access_token(subject=user.user_account_id),
+        refresh_token=create_refresh_token(subject=user.user_account_id),
+    )
 
 
 @router.get("/me", response_model=UserResponse)

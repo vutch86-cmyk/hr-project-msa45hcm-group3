@@ -5,6 +5,7 @@ Hệ thống quản lý nhân sự, chấm công Kiosk qua thẻ QR tĩnh, quả
 > 📖 **Tài liệu tham khảo liên quan:**
 > * 🏛️ **Kiến trúc phần mềm tổng thể:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 > * 🚀 **Hướng dẫn cài đặt & vận hành:** [docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md)
+> * 🔐 **Microsoft login trên Azure:** [docs/MICROSOFT_LOGIN_AZURE.md](docs/MICROSOFT_LOGIN_AZURE.md)
 
 ---
 

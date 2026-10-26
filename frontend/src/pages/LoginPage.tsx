@@ -1,20 +1,48 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Form, Input, Button, Alert, Typography, Divider, Space, Tag } from 'antd';
 import { UserOutlined, LockOutlined, ThunderboltOutlined, SafetyCertificateOutlined, QrcodeOutlined } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { SESSION_EXPIRED_MESSAGE } from '../types/ai';
 import { useAuth } from '../context/AuthContext';
 import { GoogleLogin } from '@react-oauth/google';
+import { getMicrosoftClient } from '../services/microsoftAuth';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 
 export const LoginPage: React.FC = () => {
   const [form] = Form.useForm();
-  const { login, loginWithGoogle } = useAuth();
+  const { login, loginWithGoogle, loginWithMicrosoft } = useAuth();
   const navigate = useNavigate();
   const [query] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(() => query.get('reason') === 'session-expired' ? SESSION_EXPIRED_MESSAGE : null);
+
+  const [microsoftReady, setMicrosoftReady] = useState(false);
+  const [microsoftSetupError, setMicrosoftSetupError] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    getMicrosoftClient().then((client) => {
+      if (mounted) setMicrosoftReady(Boolean(client));
+    }).catch(() => { if (mounted) setMicrosoftSetupError(true); });
+    return () => { mounted = false; };
+  }, []);
+
+  const handleMicrosoftLogin = async () => {
+    setLoading(true);
+    setErrorMsg(null);
+    try {
+      const client = await getMicrosoftClient();
+      if (!client) throw new Error('Microsoft login is unavailable');
+      const result = await client.loginPopup({ scopes: ['openid', 'profile'], prompt: 'select_account' });
+      await loginWithMicrosoft(result.idToken);
+      navigate('/dashboard');
+    } catch (err: any) {
+      if (err.errorCode === 'user_cancelled') return;
+      setErrorMsg(err.response?.data?.detail || 'Không thể đăng nhập Microsoft. Vui lòng cho phép cửa sổ bật lên và thử lại.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (values: { email: string; pass: string }) => {
     setLoading(true);
@@ -190,6 +218,15 @@ export const LoginPage: React.FC = () => {
             width="396"
           />
         </div>
+
+        {microsoftReady && (
+          <Button block size="large" loading={loading} onClick={handleMicrosoftLogin}
+            style={{ borderRadius: 8, marginBottom: 16 }}>
+            Đăng nhập bằng Microsoft
+          </Button>
+        )}
+        {microsoftSetupError && <Alert type="warning" showIcon style={{ marginBottom: 16 }}
+          message="Chưa tải được đăng nhập Microsoft. Vui lòng tải lại trang để thử lại." />}
 
         <Divider style={{ margin: '16px 0 16px', fontSize: 12, color: '#94a3b8' }}>
           HOẶC ĐĂNG NHẬP NHANH (DEMO)
